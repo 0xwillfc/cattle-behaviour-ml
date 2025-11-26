@@ -1,11 +1,28 @@
 # Bovine Behavior Classification
 
-Project for organizing and exploring tri-axial accelerometer data from beef cattle.
+Utilities for loading the Japanese Black Beef Cow behavior dataset and preparing it for behavior classification experiments.
 
-The first version defines the project structure and the Python environment used for the analysis.
+## Dataset
+
+Source: Zenodo 5849025.
+
+Place the six CSV files in `data/`:
+
+- `cow1.csv`
+- `cow2.csv`
+- `cow3.csv`
+- `cow4.csv`
+- `cow5.csv`
+- `cow6.csv`
 
 ## Setup
 
 ```bash
 pip install -r requirements.txt
+```
+
+## Load the data
+
+```bash
+python app/app.py
 ```
