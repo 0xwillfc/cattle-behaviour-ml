@@ -1,19 +1,13 @@
 # Bovine Behavior Classification
 
-Utilities for loading the Japanese Black Beef Cow behavior dataset and preparing it for behavior classification experiments.
+Feature engineering workflow for Japanese Black Beef Cow accelerometer data.
 
-## Dataset
+## Current workflow
 
-Source: Zenodo 5849025.
-
-Place the six CSV files in `data/`:
-
-- `cow1.csv`
-- `cow2.csv`
-- `cow3.csv`
-- `cow4.csv`
-- `cow5.csv`
-- `cow6.csv`
+1. Load `cow1.csv` to `cow6.csv`
+2. Remove unlabeled rows
+3. Split each cow time series into sliding windows
+4. Extract statistical and FFT features from `AccX`, `AccY`, and `AccZ`
 
 ## Setup
 
@@ -21,7 +15,7 @@ Place the six CSV files in `data/`:
 pip install -r requirements.txt
 ```
 
-## Load the data
+## Run
 
 ```bash
 python app/app.py

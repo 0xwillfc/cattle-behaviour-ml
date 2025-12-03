@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
 
@@ -22,7 +23,30 @@ def load_data(data_dir=DATA_DIR):
     return data
 
 
+def extract_features(df, window=125, step=62):
+    rows = []
+    for cow_id, cow_df in df.groupby("cow_id"):
+        cow_df = cow_df.reset_index(drop=True)
+        for start in range(0, len(cow_df) - window, step):
+            chunk = cow_df.iloc[start:start + window]
+            label = chunk["Label"].mode()[0]
+            row = {"label": label, "cow_id": int(cow_id)}
+            for axis in ["AccX", "AccY", "AccZ"]:
+                values = chunk[axis].to_numpy()
+                row[f"{axis}_mean"] = values.mean()
+                row[f"{axis}_std"] = values.std()
+                row[f"{axis}_min"] = values.min()
+                row[f"{axis}_max"] = values.max()
+                row[f"{axis}_range"] = values.max() - values.min()
+                spectrum = np.abs(np.fft.rfft(values))
+                row[f"{axis}_fft_mean"] = spectrum.mean()
+                row[f"{axis}_fft_std"] = spectrum.std()
+            rows.append(row)
+    return pd.DataFrame(rows)
+
+
 if __name__ == "__main__":
-    df = load_data()
-    print(df.shape)
-    print(df["Label"].value_counts())
+    data = load_data()
+    features = extract_features(data)
+    print(data.shape)
+    print(features.shape)
