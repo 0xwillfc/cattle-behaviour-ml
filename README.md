@@ -1,19 +1,13 @@
 # Bovine Behavior Classification
 
-Feature engineering workflow for Japanese Black Beef Cow accelerometer data.
+Accelerometer feature extraction and exploratory visualization for bovine behavior data.
 
-## Current workflow
+## Features
 
-1. Load `cow1.csv` to `cow6.csv`
-2. Remove unlabeled rows
-3. Split each cow time series into sliding windows
-4. Extract statistical and FFT features from `AccX`, `AccY`, and `AccZ`
-
-## Setup
-
-```bash
-pip install -r requirements.txt
-```
+- Dataset loading by cow
+- Sliding window feature extraction
+- PCA visualization
+- t-SNE visualization
 
 ## Run
 

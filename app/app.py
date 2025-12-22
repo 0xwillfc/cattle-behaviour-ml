@@ -1,7 +1,12 @@
 from pathlib import Path
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import seaborn as sns
+from sklearn.decomposition import PCA
+from sklearn.manifold import TSNE
+from sklearn.preprocessing import StandardScaler
 
 
 DATA_DIR = Path(__file__).parent.parent / "data"
@@ -45,8 +50,26 @@ def extract_features(df, window=125, step=62):
     return pd.DataFrame(rows)
 
 
+def reduce_features(features, method="pca", sample_size=1500):
+    features = features.sample(min(sample_size, len(features)), random_state=42)
+    cols = [c for c in features.columns if c not in ["label", "cow_id"]]
+    x = StandardScaler().fit_transform(features[cols])
+    if method == "tsne":
+        coords = TSNE(n_components=2, perplexity=30, random_state=42).fit_transform(x)
+    else:
+        coords = PCA(n_components=2, random_state=42).fit_transform(x)
+    return pd.DataFrame({"x": coords[:, 0], "y": coords[:, 1], "label": features["label"].values})
+
+
+def plot_embedding(coords, title):
+    sns.scatterplot(data=coords, x="x", y="y", hue="label", s=15, alpha=0.7)
+    plt.title(title)
+    plt.tight_layout()
+    plt.show()
+
+
 if __name__ == "__main__":
     data = load_data()
     features = extract_features(data)
-    print(data.shape)
-    print(features.shape)
+    plot_embedding(reduce_features(features, "pca"), "PCA")
+    plot_embedding(reduce_features(features, "tsne"), "t-SNE")
