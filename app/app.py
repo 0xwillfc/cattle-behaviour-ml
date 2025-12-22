@@ -5,8 +5,11 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 from sklearn.decomposition import PCA
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.manifold import TSNE
-from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import LabelEncoder, StandardScaler
 
 
 DATA_DIR = Path(__file__).parent.parent / "data"
@@ -50,6 +53,28 @@ def extract_features(df, window=125, step=62):
     return pd.DataFrame(rows)
 
 
+def filter_rare_classes(features, min_samples=2):
+    counts = features["label"].value_counts()
+    return features[features["label"].isin(counts[counts >= min_samples].index)]
+
+
+def train_random_forest(features):
+    features = filter_rare_classes(features)
+    feature_cols = [c for c in features.columns if c not in ["label", "cow_id"]]
+    x = features[feature_cols]
+    y = LabelEncoder().fit_transform(features["label"])
+    x_train, x_test, y_train, y_test = train_test_split(
+        x, y, test_size=0.25, random_state=42, stratify=y
+    )
+    model = RandomForestClassifier(n_estimators=200, random_state=42, n_jobs=-1)
+    model.fit(x_train, y_train)
+    predictions = model.predict(x_test)
+    print("Accuracy:", accuracy_score(y_test, predictions))
+    print(classification_report(y_test, predictions))
+    print(confusion_matrix(y_test, predictions))
+    return model
+
+
 def reduce_features(features, method="pca", sample_size=1500):
     features = features.sample(min(sample_size, len(features)), random_state=42)
     cols = [c for c in features.columns if c not in ["label", "cow_id"]]
@@ -71,5 +96,4 @@ def plot_embedding(coords, title):
 if __name__ == "__main__":
     data = load_data()
     features = extract_features(data)
-    plot_embedding(reduce_features(features, "pca"), "PCA")
-    plot_embedding(reduce_features(features, "tsne"), "t-SNE")
+    train_random_forest(features)
