@@ -1,15 +1,11 @@
 from pathlib import Path
 
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import seaborn as sns
-from sklearn.decomposition import PCA
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.manifold import TSNE
-from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
+from sklearn.metrics import accuracy_score, classification_report
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import LabelEncoder, StandardScaler
+from sklearn.preprocessing import LabelEncoder
 
 
 DATA_DIR = Path(__file__).parent.parent / "data"
@@ -69,31 +65,33 @@ def train_random_forest(features):
     model = RandomForestClassifier(n_estimators=200, random_state=42, n_jobs=-1)
     model.fit(x_train, y_train)
     predictions = model.predict(x_test)
-    print("Accuracy:", accuracy_score(y_test, predictions))
+    print("Holdout accuracy:", accuracy_score(y_test, predictions))
     print(classification_report(y_test, predictions))
-    print(confusion_matrix(y_test, predictions))
     return model
 
 
-def reduce_features(features, method="pca", sample_size=1500):
-    features = features.sample(min(sample_size, len(features)), random_state=42)
-    cols = [c for c in features.columns if c not in ["label", "cow_id"]]
-    x = StandardScaler().fit_transform(features[cols])
-    if method == "tsne":
-        coords = TSNE(n_components=2, perplexity=30, random_state=42).fit_transform(x)
-    else:
-        coords = PCA(n_components=2, random_state=42).fit_transform(x)
-    return pd.DataFrame({"x": coords[:, 0], "y": coords[:, 1], "label": features["label"].values})
-
-
-def plot_embedding(coords, title):
-    sns.scatterplot(data=coords, x="x", y="y", hue="label", s=15, alpha=0.7)
-    plt.title(title)
-    plt.tight_layout()
-    plt.show()
+def leave_one_cow_out(features):
+    feature_cols = [c for c in features.columns if c not in ["label", "cow_id"]]
+    results = []
+    for cow_id in sorted(features["cow_id"].unique()):
+        train_df = filter_rare_classes(features[features["cow_id"] != cow_id])
+        test_df = features[features["cow_id"] == cow_id]
+        labels = sorted(set(train_df["label"]) & set(test_df["label"]))
+        train_df = train_df[train_df["label"].isin(labels)]
+        test_df = test_df[test_df["label"].isin(labels)]
+        if train_df.empty or test_df.empty:
+            continue
+        encoder = LabelEncoder()
+        y_train = encoder.fit_transform(train_df["label"])
+        y_test = encoder.transform(test_df["label"])
+        model = RandomForestClassifier(n_estimators=200, random_state=42, n_jobs=-1)
+        model.fit(train_df[feature_cols], y_train)
+        predictions = model.predict(test_df[feature_cols])
+        results.append({"cow_id": cow_id, "accuracy": accuracy_score(y_test, predictions)})
+    return pd.DataFrame(results)
 
 
 if __name__ == "__main__":
     data = load_data()
     features = extract_features(data)
-    train_random_forest(features)
+    print(leave_one_cow_out(features))

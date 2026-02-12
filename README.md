@@ -8,6 +8,7 @@ Machine learning workflow for bovine behavior classification from accelerometer 
 - Sliding window feature extraction
 - PCA and t-SNE visualization
 - Random Forest training pipeline
+- Leave-One-Cow-Out validation
 
 ## Run
 
