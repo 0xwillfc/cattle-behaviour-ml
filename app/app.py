@@ -30,11 +30,11 @@ warnings.filterwarnings("ignore")
 
 DATA_DIR = Path(__file__).parent.parent / "data"
 
-st.set_page_config(page_title="Bovine Behavior Classification", layout="wide")
-st.title("Bovine Behavior Classification")
-st.markdown("Tri-axial accelerometer data from Japanese Black Beef Cows — [Dataset: Zenodo 5849025](https://zenodo.org/records/5849025)")
+st.set_page_config(page_title="Classificação de comportamento", layout="wide")
+st.title("Classificação de comportamento")
+st.markdown("Dados de acelerômetro tri-axial de seis vacas *Japanese Black* — [dataset no Zenodo](https://zenodo.org/records/5849025)")
 
-# ── Data loading ───────────────────────────────────────────────────────────────
+# carregamento dos dados
 
 @st.cache_data
 def load_data():
@@ -85,29 +85,32 @@ def filter_rare_classes(df, min_samples=2):
 data = load_data()
 
 if data is None:
-    st.error("No data found. Please add the CSV files (cow1.csv ... cow6.csv) to the `data/` folder.")
-    st.info("Download from: https://zenodo.org/records/5849025")
+    st.error("Nenhum dado encontrado. Adicione os arquivos CSV (cow1.csv ... cow6.csv) na pasta `data/`.")
+    st.info("Download: https://zenodo.org/records/5849025")
     st.stop()
 
-# ── Sidebar ────────────────────────────────────────────────────────────────────
+# filtros e opções
 
-st.sidebar.header("Filters")
+st.sidebar.header("Filtros")
 cow_options = sorted(data["cow_id"].unique())
-selected_cows = st.sidebar.multiselect("Select cows", cow_options, default=cow_options)
+selected_cows = st.sidebar.multiselect("Selecionar vacas", cow_options, default=cow_options)
 all_behaviors = sorted(data["Label"].unique())
-selected_behaviors = st.sidebar.multiselect("Select behaviors", all_behaviors, default=all_behaviors)
+selected_behaviors = st.sidebar.multiselect("Selecionar comportamentos", all_behaviors, default=all_behaviors)
 
 st.sidebar.divider()
-st.sidebar.header("Chart Settings")
-pub_mode = st.sidebar.toggle("Publication Mode", value=False,
-                              help="White background, 300 DPI export — ready for articles and presentations")
-if pub_mode:
-    dpi_export = st.sidebar.select_slider("Export DPI", options=[150, 200, 300], value=300)
-    st.sidebar.info("All charts will render in publication style with download buttons.")
+st.sidebar.header("Gráficos")
+export_mode = st.sidebar.toggle(
+    "Modo de exportação",
+    value=False,
+    help="Fundo branco e opção de baixar gráficos em PNG."
+)
+if export_mode:
+    dpi_export = st.sidebar.select_slider("DPI para exportação", options=[150, 200, 300], value=300)
+    st.sidebar.info("Os gráficos ficam prontos para baixar em PNG.")
 
 filtered = data[data["cow_id"].isin(selected_cows) & data["Label"].isin(selected_behaviors)]
 
-# ── Matplotlib helpers ─────────────────────────────────────────────────────────
+# funções para gráficos
 
 QUAL_COLORS = plt.get_cmap("tab20").colors
 
@@ -129,23 +132,23 @@ def fig_to_png(fig, dpi=300):
 def show_fig(container, fig, filename, pub, dpi=300):
     container.pyplot(fig, use_container_width=True)
     if pub:
-        container.download_button(f"Download PNG — {filename}",
+        container.download_button(f"Baixar PNG — {filename}",
                                    fig_to_png(fig, dpi), file_name=filename, mime="image/png")
     plt.close(fig)
 
 def plotly_download(container, plotly_fig, filename):
     buf = io.BytesIO()
     plotly_fig.write_image(buf, format="png", scale=3)
-    container.download_button(f"Download PNG — {filename}", buf.getvalue(),
+    container.download_button(f"Baixar PNG — {filename}", buf.getvalue(),
                                file_name=filename, mime="image/png")
 
-# ── Tabs ───────────────────────────────────────────────────────────────────────
+# abas principais
 
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
-    "Overview", "Signal Viewer", "Dimensionality Reduction", "Classification", "LOCO Validation"
+    "Visão geral", "Sinais", "Redução de dimensionalidade", "Classificação", "Validação LOCO"
 ])
 
-# ── Tab 1: Overview ────────────────────────────────────────────────────────────
+# visão geral
 
 with tab1:
     col1, col2, col3 = st.columns(3)
@@ -158,7 +161,7 @@ with tab1:
     cow_beh = filtered.groupby(["cow_id", "Label"]).size().reset_index(name="count")
 
     st.subheader("Behavior distribution")
-    if pub_mode:
+    if export_mode:
         fig, ax = mpl_fig((9, 4))
         colors = [QUAL_COLORS[i % 20] for i in range(len(counts))]
         ax.bar(counts["Behavior"], counts["Count"], color=colors, edgecolor="white", linewidth=0.5)
@@ -167,7 +170,7 @@ with tab1:
         ax.set_title("Behavior Distribution", fontsize=11, fontweight="bold")
         ax.tick_params(axis="x", rotation=40)
         plt.tight_layout()
-        show_fig(st, fig, "behavior_distribution.png", pub_mode, dpi_export)
+        show_fig(st, fig, "behavior_distribution.png", export_mode, dpi_export)
     else:
         fig = px.bar(counts, x="Behavior", y="Count", color="Behavior",
                      color_discrete_sequence=px.colors.qualitative.Safe)
@@ -175,7 +178,7 @@ with tab1:
         st.plotly_chart(fig, use_container_width=True)
 
     st.subheader("Distribution per cow")
-    if pub_mode:
+    if export_mode:
         pivoted = cow_beh.pivot(index="cow_id", columns="Label", values="count").fillna(0)
         fig, ax = mpl_fig((9, 4))
         bottom = np.zeros(len(pivoted))
@@ -188,28 +191,28 @@ with tab1:
         ax.set_title("Sample Distribution per Cow", fontsize=11, fontweight="bold")
         ax.legend(fontsize=7, bbox_to_anchor=(1.01, 1), loc="upper left", framealpha=0.8)
         plt.tight_layout()
-        show_fig(st, fig, "distribution_per_cow.png", pub_mode, dpi_export)
+        show_fig(st, fig, "distribution_per_cow.png", export_mode, dpi_export)
     else:
         fig2 = px.bar(cow_beh, x="cow_id", y="count", color="Label", barmode="stack",
                       labels={"cow_id": "Cow", "count": "Samples"},
                       color_discrete_sequence=px.colors.qualitative.Safe)
         st.plotly_chart(fig2, use_container_width=True)
 
-# ── Tab 2: Signal Viewer ───────────────────────────────────────────────────────
+# sinais
 
 with tab2:
-    st.subheader("Accelerometer signal")
+    st.subheader("Sinal do acelerometro")
     col1, col2 = st.columns(2)
-    sel_cow = col1.selectbox("Cow", sorted(filtered["cow_id"].unique()))
-    sel_behavior = col2.selectbox("Behavior", sorted(filtered[filtered["cow_id"] == sel_cow]["Label"].unique()))
-    n_samples = st.slider("Number of samples to display", 100, 1000, 500, step=50)
+    sel_cow = col1.selectbox("Vaca", sorted(filtered["cow_id"].unique()))
+    sel_behavior = col2.selectbox("Comportamento", sorted(filtered[filtered["cow_id"] == sel_cow]["Label"].unique()))
+    n_samples = st.slider("Número de amostras no gráfico", 100, 1000, 500, step=50)
 
     segment = filtered[(filtered["cow_id"] == sel_cow) & (filtered["Label"] == sel_behavior)].head(n_samples)
 
     if segment.empty:
-        st.warning("No data for this selection.")
+        st.warning("Não há dados para essa seleção.")
     else:
-        if pub_mode:
+        if export_mode:
             axis_colors = {"AccX": "#D62728", "AccY": "#2CA02C", "AccZ": "#1F77B4"}
             fig, ax = mpl_fig((9, 4))
             for axis, color in axis_colors.items():
@@ -219,7 +222,7 @@ with tab2:
             ax.set_ylabel("Acceleration (g)", fontsize=10)
             ax.legend(fontsize=9, framealpha=0.8)
             plt.tight_layout()
-            show_fig(st, fig, f"signal_cow{sel_cow}_{sel_behavior}.png", pub_mode, dpi_export)
+            show_fig(st, fig, f"signal_cow{sel_cow}_{sel_behavior}.png", export_mode, dpi_export)
         else:
             fig = go.Figure()
             colors = {"AccX": "#EF553B", "AccY": "#00CC96", "AccZ": "#636EFA"}
@@ -236,7 +239,7 @@ with tab2:
             col.metric(f"{axis} mean ± std",
                        f"{segment[axis].mean():.3f} ± {segment[axis].std():.3f} g")
 
-# ── Tab 3: Dimensionality Reduction ───────────────────────────────────────────
+# redução de dimensionalidade
 
 def plot_scatter_matplotlib(coords, color_by, title, subtitle="", dpi=150):
     unique_labels = sorted(set(color_by))
@@ -270,11 +273,11 @@ def plot_scatter_matplotlib(coords, color_by, title, subtitle="", dpi=150):
     return fig
 
 with tab3:
-    st.subheader("Dimensionality Reduction")
+    st.subheader("Redução de dimensionalidade")
     col1, col2 = st.columns(2)
     method = col1.selectbox("Method", ["PCA", "t-SNE"])
-    window_size = col2.selectbox("Window size (samples)", [62, 125, 250], index=1)
-    max_windows = st.slider("Max windows to use", 500, 5000, 2000, step=500)
+    window_size = col2.selectbox("Tamanho da janela (amostras)", [62, 125, 250], index=1)
+    max_windows = st.slider("Máximo de janelas no gráfico", 500, 5000, 2000, step=500)
 
     if st.button("Run reduction"):
         with st.spinner("Extracting features..."):
@@ -282,7 +285,7 @@ with tab3:
             feat_df = feat_df.sample(min(max_windows, len(feat_df)), random_state=42)
 
         if len(feat_df) < 3:
-            st.warning("Not enough windows to run dimensionality reduction. Try selecting more cows or behaviors.")
+            st.warning("Não há janelas suficientes para gerar o gráfico. Tente selecionar mais vacas ou comportamentos.")
             st.stop()
 
         feature_cols = [c for c in feat_df.columns if c not in ["label", "cow_id"]]
@@ -300,40 +303,40 @@ with tab3:
                 subtitle = f"perplexity={perplexity}"
 
         col1, col2 = st.columns(2)
-        export_dpi = dpi_export if pub_mode else 150
+        export_dpi = dpi_export if export_mode else 150
 
         fig1 = plot_scatter_matplotlib(coords, feat_df["label"].values,
                                         f"{method} — by Behavior", subtitle)
         col1.pyplot(fig1, use_container_width=True)
-        col1.download_button("Download PNG (Behavior)", fig_to_png(fig1, export_dpi),
+        col1.download_button("Baixar PNG (comportamento)", fig_to_png(fig1, export_dpi),
                               file_name=f"{method}_behavior.png", mime="image/png")
         plt.close(fig1)
 
         fig2 = plot_scatter_matplotlib(coords, [f"Cow {c}" for c in feat_df["cow_id"].values],
                                         f"{method} — by Cow", subtitle)
         col2.pyplot(fig2, use_container_width=True)
-        col2.download_button("Download PNG (Cow)", fig_to_png(fig2, export_dpi),
+        col2.download_button("Baixar PNG (vaca)", fig_to_png(fig2, export_dpi),
                               file_name=f"{method}_cow.png", mime="image/png")
         plt.close(fig2)
 
-# ── Tab 4: Classification ──────────────────────────────────────────────────────
+# classificação
 
 with tab4:
-    st.subheader("Model comparison")
+    st.subheader("Comparação de modelos")
     col1, col2 = st.columns(2)
-    n_estimators = col1.slider("Number of trees (Random Forest)", 50, 300, 100, step=50)
-    test_size = col2.slider("Test size", 0.1, 0.4, 0.2, step=0.05)
+    n_estimators = col1.slider("Número de árvores (Random Forest)", 50, 300, 100, step=50)
+    test_size = col2.slider("Tamanho do teste", 0.1, 0.4, 0.2, step=0.05)
 
-    if st.button("Train models"):
-        with st.spinner("Extracting features and training..."):
+    if st.button("Treinar modelos"):
+        with st.spinner("Extraindo características e treinando..."):
             feat_df = extract_features(filtered)
 
         if len(feat_df["label"].unique()) < 2:
-            st.warning("Select at least 2 behavior classes to train.")
+            st.warning("Selecione pelo menos 2 classes de comportamento para treinar.")
         else:
             feat_df = filter_rare_classes(feat_df)
             if len(feat_df["label"].unique()) < 2:
-                st.warning("Not enough samples per class. Try selecting more cows or behaviors.")
+                st.warning("Não há amostras suficientes por classe. Tente selecionar mais vacas ou comportamentos.")
                 st.stop()
 
             feature_cols = [c for c in feat_df.columns if c not in ["label", "cow_id"]]
@@ -375,7 +378,7 @@ with tab4:
             )
             metric_cols = ["Accuracy", "Balanced accuracy", "Macro F1"]
 
-            st.subheader("Model comparison")
+            st.subheader("Comparação de modelos")
             st.dataframe(
                 comparison_df.assign(**{
                     col: comparison_df[col].map(lambda value: f"{value:.1%}")
@@ -385,18 +388,18 @@ with tab4:
                 hide_index=True,
             )
 
-            if pub_mode:
+            if export_mode:
                 fig, ax = mpl_fig((8, 4))
                 plot_df = comparison_df.set_index("Model")[metric_cols] * 100
                 plot_df.plot(kind="bar", ax=ax, color=["#4C78A8", "#F58518", "#54A24B"])
                 ax.set_ylabel("Score (%)", fontsize=10)
                 ax.set_xlabel("Model", fontsize=10)
-                ax.set_title("Model comparison", fontsize=11, fontweight="bold")
+                ax.set_title("Comparação de modelos", fontsize=11, fontweight="bold")
                 ax.set_ylim(0, 100)
                 ax.tick_params(axis="x", rotation=30)
                 ax.legend(fontsize=8)
                 plt.tight_layout()
-                show_fig(st, fig, "model_comparison.png", pub_mode, dpi_export)
+                show_fig(st, fig, "model_comparison.png", export_mode, dpi_export)
             else:
                 plot_df = comparison_df.melt(
                     id_vars="Model", value_vars=metric_cols,
@@ -412,7 +415,7 @@ with tab4:
                 st.plotly_chart(fig, use_container_width=True)
 
             selected_model = comparison_df.iloc[0]["Model"]
-            st.caption(f"Detailed report for the best model by Macro F1: {selected_model}")
+            st.caption(f"Relatório detalhado do melhor modelo por Macro F1: {selected_model}")
 
             clf = trained_models[selected_model]
             y_pred = predictions[selected_model]
@@ -427,10 +430,10 @@ with tab4:
 
             present_names = le.classes_[present_labels].tolist()
             cm = confusion_matrix(y_test, y_pred, labels=present_labels)
-            export_dpi = dpi_export if pub_mode else 150
+            export_dpi = dpi_export if export_mode else 150
 
-            # Confusion matrix
-            if pub_mode:
+            # matriz de confusão
+            if export_mode:
                 fig, ax = mpl_fig((max(6, len(present_names) * 0.7), max(5, len(present_names) * 0.6)))
                 sns.heatmap(cm, annot=True, fmt="d", cmap="Blues",
                             xticklabels=present_names, yticklabels=present_names,
@@ -441,7 +444,7 @@ with tab4:
                 ax.tick_params(axis="x", rotation=40, labelsize=8)
                 ax.tick_params(axis="y", rotation=0, labelsize=8)
                 plt.tight_layout()
-                show_fig(st, fig, "confusion_matrix.png", pub_mode, export_dpi)
+                show_fig(st, fig, "confusion_matrix.png", export_mode, export_dpi)
             else:
                 fig = px.imshow(cm, x=present_names, y=present_names,
                                 labels=dict(x="Predicted", y="True", color="Count"),
@@ -450,13 +453,13 @@ with tab4:
                 fig.update_layout(xaxis_tickangle=-40)
                 st.plotly_chart(fig, use_container_width=True)
 
-            # Feature importance
+            # importância das variáveis
             if hasattr(clf, "feature_importances_"):
                 importances = pd.Series(clf.feature_importances_, index=feature_cols)
                 top10 = importances.nlargest(10).reset_index()
                 top10.columns = ["Feature", "Importance"]
 
-                if pub_mode:
+                if export_mode:
                     fig, ax = mpl_fig((7, 4))
                     colors = plt.cm.Blues(np.linspace(0.4, 0.9, len(top10)))
                     ax.barh(top10["Feature"], top10["Importance"], color=colors, edgecolor="white")
@@ -464,7 +467,7 @@ with tab4:
                     ax.set_title("Top 10 Feature Importances", fontsize=11, fontweight="bold")
                     ax.invert_yaxis()
                     plt.tight_layout()
-                    show_fig(st, fig, "feature_importance.png", pub_mode, export_dpi)
+                    show_fig(st, fig, "feature_importance.png", export_mode, export_dpi)
                 else:
                     fig2 = px.bar(top10, x="Importance", y="Feature", orientation="h",
                                   title="Top 10 Feature Importances", color="Importance",
@@ -473,26 +476,25 @@ with tab4:
             else:
                 st.info(f"{selected_model} does not provide feature importance in this configuration.")
 
-# ── Tab 5: LOCO Validation ─────────────────────────────────────────────────────
+# validação por vaca
 
 with tab5:
-    st.subheader("Leave-One-Cow-Out (LOCO) Validation")
+    st.subheader("Validação Leave-One-Cow-Out (LOCO)")
     st.markdown("""
-    **What is LOCO?** The model is trained on data from 5 cows and tested on the remaining cow — repeated for each cow.
-    This validates whether the model generalizes to **unseen animals**, not just unseen data from the same animals.
-    It is the gold standard validation method for wearable sensor studies in livestock.
+    **O que é LOCO?** O modelo treina com os dados de algumas vacas e testa na vaca que ficou de fora.
+    Esse processo é repetido para cada animal. A ideia é avaliar se o modelo generaliza para uma vaca que não apareceu no treinamento.
     """)
 
-    n_est_loco = st.slider("Number of trees (LOCO)", 50, 200, 100, step=50)
+    n_est_loco = st.slider("Número de árvores (LOCO)", 50, 200, 100, step=50)
 
-    if st.button("Run LOCO Validation"):
+    if st.button("Rodar validação LOCO"):
         all_cows = sorted(filtered["cow_id"].unique())
 
         if len(all_cows) < 2:
-            st.warning("Select at least 2 cows to run LOCO.")
+            st.warning("Selecione pelo menos 2 vacas para rodar a validação LOCO.")
             st.stop()
 
-        with st.spinner("Extracting features for all cows..."):
+        with st.spinner("Extraindo características de todas as vacas..."):
             feat_df = extract_features(filtered)
             feat_df = filter_rare_classes(feat_df, min_samples=2)
 
@@ -539,23 +541,23 @@ with tab5:
             progress.progress((i + 1) / len(all_cows))
 
         if not results:
-            st.warning("Not enough data to run LOCO. Try selecting more cows and behaviors.")
+            st.warning("Não há dados suficientes para rodar LOCO. Tente selecionar mais vacas e comportamentos.")
             st.stop()
 
         results_df = pd.DataFrame(results)
         mean_acc = results_df["Accuracy"].mean()
         std_acc  = results_df["Accuracy"].std()
-        export_dpi = dpi_export if pub_mode else 150
+        export_dpi = dpi_export if export_mode else 150
 
         col1, col2, col3 = st.columns(3)
-        col1.metric("Mean LOCO Accuracy", f"{mean_acc:.1%}")
-        col2.metric("Std Deviation", f"{std_acc:.1%}")
-        col3.metric("Cows evaluated", len(results_df))
+        col1.metric("Acurácia média LOCO", f"{mean_acc:.1%}")
+        col2.metric("Desvio padrão", f"{std_acc:.1%}")
+        col3.metric("Vacas avaliadas", len(results_df))
 
-        st.subheader("Accuracy per test cow")
+        st.subheader("Acurácia por vaca de teste")
         results_df["Accuracy %"] = (results_df["Accuracy"] * 100).round(1)
 
-        if pub_mode:
+        if export_mode:
             fig, ax = mpl_fig((7, 4))
             cmap_vals = plt.cm.Blues(results_df["Accuracy %"] / 100)
             bars = ax.bar(results_df["Test Cow"], results_df["Accuracy %"],
@@ -571,7 +573,7 @@ with tab5:
             ax.set_title("LOCO Accuracy per Test Cow", fontsize=11, fontweight="bold")
             ax.legend(fontsize=9)
             plt.tight_layout()
-            show_fig(st, fig, "loco_accuracy.png", pub_mode, export_dpi)
+            show_fig(st, fig, "loco_accuracy.png", export_mode, export_dpi)
         else:
             fig = px.bar(results_df, x="Test Cow", y="Accuracy %", color="Accuracy %",
                          color_continuous_scale="Blues", range_y=[0, 100], text="Accuracy %")
@@ -580,18 +582,18 @@ with tab5:
             fig.update_traces(texttemplate="%{text:.1f}%", textposition="outside")
             st.plotly_chart(fig, use_container_width=True)
 
-        st.subheader("Details per cow")
+        st.subheader("Detalhes por vaca")
         st.dataframe(results_df.set_index("Test Cow"), use_container_width=True)
 
         if per_class_results:
-            st.subheader("F1-score per behavior across folds")
+            st.subheader("F1-score por comportamento")
             per_class_df = pd.DataFrame(per_class_results)
             pivot = per_class_df.pivot(index="Behavior", columns="Cow", values="F1-score").round(3)
             pivot["Mean F1"] = pivot.mean(axis=1).round(3)
             pivot = pivot.sort_values("Mean F1", ascending=False)
             st.dataframe(pivot, use_container_width=True)
 
-            if pub_mode:
+            if export_mode:
                 fig, ax = mpl_fig((9, 5))
                 behaviors = per_class_df["Behavior"].unique()
                 cmap = plt.get_cmap("tab20", len(behaviors))
@@ -610,7 +612,7 @@ with tab5:
                              fontsize=11, fontweight="bold")
                 ax.set_ylim(-0.05, 1.05)
                 plt.tight_layout()
-                show_fig(st, fig, "loco_f1_boxplot.png", pub_mode, export_dpi)
+                show_fig(st, fig, "loco_f1_boxplot.png", export_mode, export_dpi)
             else:
                 fig2 = px.box(per_class_df, x="Behavior", y="F1-score", color="Behavior",
                               title="F1-score distribution per behavior (across cows)",
