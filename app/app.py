@@ -46,21 +46,27 @@ def load_data():
 @st.cache_data
 def extract_features(df, window=125, step=62):
     features = []
-    for start in range(0, len(df) - window, step):
-        w = df.iloc[start:start + window]
-        label = w["Label"].mode()[0]
-        row = {"label": label, "cow_id": int(w["cow_id"].iloc[0])}
-        for ax in ["AccX", "AccY", "AccZ"]:
-            vals = w[ax].values
-            row[f"{ax}_mean"] = vals.mean()
-            row[f"{ax}_std"] = vals.std()
-            row[f"{ax}_min"] = vals.min()
-            row[f"{ax}_max"] = vals.max()
-            row[f"{ax}_range"] = vals.max() - vals.min()
-            fft = np.abs(np.fft.rfft(vals))
-            row[f"{ax}_fft_mean"] = fft.mean()
-            row[f"{ax}_fft_std"] = fft.std()
-        features.append(row)
+    sort_cols = [col for col in ["cow_id", "TimeStamp_UNIX", "TimeStamp_JST"] if col in df.columns]
+    if sort_cols:
+        df = df.sort_values(sort_cols)
+
+    for cow_id, cow_df in df.groupby("cow_id", sort=True):
+        cow_df = cow_df.reset_index(drop=True)
+        for start in range(0, len(cow_df) - window + 1, step):
+            w = cow_df.iloc[start:start + window]
+            label = w["Label"].mode()[0]
+            row = {"label": label, "cow_id": int(cow_id)}
+            for ax in ["AccX", "AccY", "AccZ"]:
+                vals = w[ax].values
+                row[f"{ax}_mean"] = vals.mean()
+                row[f"{ax}_std"] = vals.std()
+                row[f"{ax}_min"] = vals.min()
+                row[f"{ax}_max"] = vals.max()
+                row[f"{ax}_range"] = vals.max() - vals.min()
+                fft = np.abs(np.fft.rfft(vals))
+                row[f"{ax}_fft_mean"] = fft.mean()
+                row[f"{ax}_fft_std"] = fft.std()
+            features.append(row)
     return pd.DataFrame(features)
 
 def filter_rare_classes(df, min_samples=2):
@@ -266,6 +272,10 @@ with tab3:
             feat_df = extract_features(filtered, window=window_size)
             feat_df = feat_df.sample(min(max_windows, len(feat_df)), random_state=42)
 
+        if len(feat_df) < 3:
+            st.warning("Not enough windows to run dimensionality reduction. Try selecting more cows or behaviors.")
+            st.stop()
+
         feature_cols = [c for c in feat_df.columns if c not in ["label", "cow_id"]]
         X = StandardScaler().fit_transform(feat_df[feature_cols])
 
@@ -275,9 +285,10 @@ with tab3:
                 coords = reducer.fit_transform(X)
                 subtitle = f"Explained variance: {reducer.explained_variance_ratio_.sum():.1%}"
             else:
-                reducer = TSNE(n_components=2, random_state=42, perplexity=30)
+                perplexity = min(30, max(2, (len(feat_df) - 1) // 3))
+                reducer = TSNE(n_components=2, random_state=42, perplexity=perplexity)
                 coords = reducer.fit_transform(X)
-                subtitle = "perplexity=30"
+                subtitle = f"perplexity={perplexity}"
 
         col1, col2 = st.columns(2)
         export_dpi = dpi_export if pub_mode else 150
