@@ -81,6 +81,16 @@ Este projeto ainda está em desenvolvimento e faz parte do meu aprendizado em ci
 
 Estou estudando machine learning com foco em aplicações para análise de dados na ciência animal, então sugestões, correções e colaborações são bem-vindas.
 
+## Próximos passos
+
+Algumas ideias que pretendo testar conforme for evoluindo o projeto:
+
+- traduzir toda a interface do dashboard para português
+- comparar os resultados usando validação por vaca e não apenas divisão treino/teste
+- estudar melhor o impacto do tamanho das janelas nos resultados
+- organizar melhor os gráficos para explicar os resultados de forma mais clara
+- testar outras abordagens para lidar com classes com poucas amostras
+
 ## Citação
 
 Se utilizar este conjunto de dados, cite o dataset original e as publicações relacionadas indicadas no Zenodo:
