@@ -37,7 +37,7 @@ Para executar o projeto:
 - Extração de atributos com janela deslizante
 - Cálculo de características como média, variação e padrões de movimento
 - Visualização com PCA e t-SNE
-- Classificação com Random Forest
+- Comparação entre Random Forest, Logistic Regression, SVM, KNN e Gradient Boosting
 - Validação Leave-One-Cow-Out
 - Dashboard em Streamlit com filtros interativos
 - Modo de exportação de gráficos para apresentações ou relatórios

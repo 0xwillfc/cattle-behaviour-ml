@@ -12,9 +12,18 @@ from pathlib import Path
 from sklearn.preprocessing import StandardScaler, LabelEncoder
 from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
-from sklearn.ensemble import RandomForestClassifier
+from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier
+from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
+from sklearn.metrics import (
+    accuracy_score,
+    balanced_accuracy_score,
+    classification_report,
+    confusion_matrix,
+    f1_score,
+)
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.svm import SVC
 import warnings
 
 warnings.filterwarnings("ignore")
@@ -310,12 +319,12 @@ with tab3:
 # ── Tab 4: Classification ──────────────────────────────────────────────────────
 
 with tab4:
-    st.subheader("Random Forest Classification")
+    st.subheader("Model comparison")
     col1, col2 = st.columns(2)
-    n_estimators = col1.slider("Number of trees", 50, 300, 100, step=50)
+    n_estimators = col1.slider("Number of trees (Random Forest)", 50, 300, 100, step=50)
     test_size = col2.slider("Test size", 0.1, 0.4, 0.2, step=0.05)
 
-    if st.button("Train model"):
+    if st.button("Train models"):
         with st.spinner("Extracting features and training..."):
             feat_df = extract_features(filtered)
 
@@ -335,16 +344,85 @@ with tab4:
             X_train, X_test, y_train, y_test = train_test_split(
                 X, y, test_size=test_size, random_state=42, stratify=y)
 
-            clf = RandomForestClassifier(n_estimators=n_estimators, random_state=42, n_jobs=-1)
-            clf.fit(X_train, y_train)
-            y_pred = clf.predict(X_test)
+            models = {
+                "Random Forest": RandomForestClassifier(
+                    n_estimators=n_estimators, random_state=42, n_jobs=-1
+                ),
+                "Logistic Regression": LogisticRegression(max_iter=1000, random_state=42),
+                "SVM": SVC(kernel="rbf", random_state=42),
+                "KNN": KNeighborsClassifier(n_neighbors=5),
+                "Gradient Boosting": GradientBoostingClassifier(random_state=42),
+            }
+
+            comparison_rows = []
+            predictions = {}
+            trained_models = {}
+
+            for name, model in models.items():
+                model.fit(X_train, y_train)
+                model_pred = model.predict(X_test)
+                predictions[name] = model_pred
+                trained_models[name] = model
+                comparison_rows.append({
+                    "Model": name,
+                    "Accuracy": accuracy_score(y_test, model_pred),
+                    "Balanced accuracy": balanced_accuracy_score(y_test, model_pred),
+                    "Macro F1": f1_score(y_test, model_pred, average="macro"),
+                })
+
+            comparison_df = pd.DataFrame(comparison_rows).sort_values(
+                "Macro F1", ascending=False
+            )
+            metric_cols = ["Accuracy", "Balanced accuracy", "Macro F1"]
+
+            st.subheader("Model comparison")
+            st.dataframe(
+                comparison_df.assign(**{
+                    col: comparison_df[col].map(lambda value: f"{value:.1%}")
+                    for col in metric_cols
+                }),
+                use_container_width=True,
+                hide_index=True,
+            )
+
+            if pub_mode:
+                fig, ax = mpl_fig((8, 4))
+                plot_df = comparison_df.set_index("Model")[metric_cols] * 100
+                plot_df.plot(kind="bar", ax=ax, color=["#4C78A8", "#F58518", "#54A24B"])
+                ax.set_ylabel("Score (%)", fontsize=10)
+                ax.set_xlabel("Model", fontsize=10)
+                ax.set_title("Model comparison", fontsize=11, fontweight="bold")
+                ax.set_ylim(0, 100)
+                ax.tick_params(axis="x", rotation=30)
+                ax.legend(fontsize=8)
+                plt.tight_layout()
+                show_fig(st, fig, "model_comparison.png", pub_mode, dpi_export)
+            else:
+                plot_df = comparison_df.melt(
+                    id_vars="Model", value_vars=metric_cols,
+                    var_name="Metric", value_name="Score"
+                )
+                plot_df["Score"] = plot_df["Score"] * 100
+                fig = px.bar(
+                    plot_df, x="Model", y="Score", color="Metric",
+                    barmode="group", range_y=[0, 100],
+                    title="Model comparison"
+                )
+                fig.update_layout(yaxis_title="Score (%)", xaxis_tickangle=-25)
+                st.plotly_chart(fig, use_container_width=True)
+
+            selected_model = comparison_df.iloc[0]["Model"]
+            st.caption(f"Detailed report for the best model by Macro F1: {selected_model}")
+
+            clf = trained_models[selected_model]
+            y_pred = predictions[selected_model]
 
             present_labels = sorted(set(y_test) | set(y_pred))
             report = classification_report(y_test, y_pred, labels=present_labels,
                                            target_names=le.classes_[present_labels], output_dict=True)
             report_df = pd.DataFrame(report).T.round(3)
 
-            st.success(f"Accuracy: **{report['accuracy']:.1%}**")
+            st.success(f"{selected_model} accuracy: **{report['accuracy']:.1%}**")
             st.dataframe(report_df, use_container_width=True)
 
             present_names = le.classes_[present_labels].tolist()
@@ -373,24 +451,27 @@ with tab4:
                 st.plotly_chart(fig, use_container_width=True)
 
             # Feature importance
-            importances = pd.Series(clf.feature_importances_, index=feature_cols)
-            top10 = importances.nlargest(10).reset_index()
-            top10.columns = ["Feature", "Importance"]
+            if hasattr(clf, "feature_importances_"):
+                importances = pd.Series(clf.feature_importances_, index=feature_cols)
+                top10 = importances.nlargest(10).reset_index()
+                top10.columns = ["Feature", "Importance"]
 
-            if pub_mode:
-                fig, ax = mpl_fig((7, 4))
-                colors = plt.cm.Blues(np.linspace(0.4, 0.9, len(top10)))
-                ax.barh(top10["Feature"], top10["Importance"], color=colors, edgecolor="white")
-                ax.set_xlabel("Importance", fontsize=10)
-                ax.set_title("Top 10 Feature Importances", fontsize=11, fontweight="bold")
-                ax.invert_yaxis()
-                plt.tight_layout()
-                show_fig(st, fig, "feature_importance.png", pub_mode, export_dpi)
+                if pub_mode:
+                    fig, ax = mpl_fig((7, 4))
+                    colors = plt.cm.Blues(np.linspace(0.4, 0.9, len(top10)))
+                    ax.barh(top10["Feature"], top10["Importance"], color=colors, edgecolor="white")
+                    ax.set_xlabel("Importance", fontsize=10)
+                    ax.set_title("Top 10 Feature Importances", fontsize=11, fontweight="bold")
+                    ax.invert_yaxis()
+                    plt.tight_layout()
+                    show_fig(st, fig, "feature_importance.png", pub_mode, export_dpi)
+                else:
+                    fig2 = px.bar(top10, x="Importance", y="Feature", orientation="h",
+                                  title="Top 10 Feature Importances", color="Importance",
+                                  color_continuous_scale="Blues")
+                    st.plotly_chart(fig2, use_container_width=True)
             else:
-                fig2 = px.bar(top10, x="Importance", y="Feature", orientation="h",
-                              title="Top 10 Feature Importances", color="Importance",
-                              color_continuous_scale="Blues")
-                st.plotly_chart(fig2, use_container_width=True)
+                st.info(f"{selected_model} does not provide feature importance in this configuration.")
 
 # ── Tab 5: LOCO Validation ─────────────────────────────────────────────────────
 
