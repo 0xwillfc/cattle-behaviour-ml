@@ -85,9 +85,8 @@ Estou estudando machine learning com foco em aplicações para análise de dados
 
 Algumas ideias que pretendo testar conforme for evoluindo o projeto:
 
-- traduzir toda a interface do dashboard para português
 - comparar os resultados usando validação por vaca e não apenas divisão treino/teste
-- estudar melhor o impacto do tamanho das janelas nos resultados
+- avaliar melhor o impacto do tamanho das janelas nos resultados
 - organizar melhor os gráficos para explicar os resultados de forma mais clara
 - testar outras abordagens para lidar com classes com poucas amostras
 
